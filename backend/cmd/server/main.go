@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -41,5 +45,25 @@ func main() {
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
 
-	log.Fatal(r.Run(":8080"))
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Println("shutdown error:", err)
+	}
+	log.Println("server stopped")
+
 }
