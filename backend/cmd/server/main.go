@@ -37,7 +37,7 @@ func main() {
 	r.StaticFile("/call.html", cfg.FrontendDir+"/call.html")
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
 
-	r.GET("/ws/:roomID", handler.WSHandler(hub))
+	r.GET("/ws/:roomID", handler.WSHandler(hub, queries))
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
 
