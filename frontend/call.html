@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jitter</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111111"
 </head>
 <body>
     <div class="videos">
@@ -26,12 +29,24 @@
     </div>
 
     <div class="controls">
-        <button id="micBtn"  onclick="toggleMic()">🎤</button>
-        <button id="camBtn"  onclick="toggleCam()">📷</button>
-        <button id="muteBtn" onclick="toggleMute()">🔊</button>
-        <button id="endBtn"  onclick="endCall()">📵</button>
+        <button id="micBtn" onclick="toggleMic()">
+            <i data-lucide="mic"></i>
+        </button>
+        <button id="camBtn" onclick="toggleCam()">
+            <i data-lucide="video"></i>
+        </button>
+        <button id="muteBtn" onclick="toggleMute()">
+            <i data-lucide="volume-2"></i>
+        </button>
+        <button id="endBtn" onclick="endCall()">
+            <i data-lucide="phone-off"></i>
+        </button>
     </div>
 
-    <script src="app.js"></script>
+    <button id="copyBtn" onclick="copyLink()">
+        <i data-lucide="link"></i>
+    </button>
+
+    <script src="/app.js"></script>
 </body>
 </html>

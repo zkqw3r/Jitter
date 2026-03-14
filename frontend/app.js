@@ -1,5 +1,5 @@
 const params = new URLSearchParams(location.search)
-const ROOM_ID = params.get('room')
+const ROOM_ID = location.pathname.split('/').pop()
 const ws = new WebSocket(`ws://${location.host}/ws/${ROOM_ID}`)
 const pc = new RTCPeerConnection({
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -52,6 +52,25 @@ async function endCall() {
     location.href = '/'
 }
 
+ws.onclose = (event) => {
+    if (event.code === 4000) {
+        document.body.innerHTML = `
+            <div style="text-align:center; margin-top: 20vh;">
+                <h2>🚫 Комната заполнена</h2>
+                <p>В этом звонке уже участвуют 2 человека</p>
+                <a href="/">← На главную</a>
+            </div>`
+    }
+}
+
+ws.onerror = () => {
+    document.body.innerHTML = `
+        <div style="text-align:center; margin-top:20vh">
+            <h2>❌ Комната не найдена</h2>
+            <p>Возможно, ссылка устарела или комната была удалена</p>
+            <br><a href="/">← На главную</a>
+        </div>`
+}
 
 ws.onmessage = async ({ data }) => {
     const msg = JSON.parse(data)
@@ -88,29 +107,9 @@ ws.onmessage = async ({ data }) => {
     } else if (msg.type === 'cam-on') {
         document.getElementById('remoteVideo').style.display = 'block'
         document.getElementById('remoteAvatar').classList.remove('visible')
+    } else if (msg.type === 'room-timeout') {
+        endCall()
     }
-}
-
-function toggleMic() {
-    const track = document.getElementById('localVideo').srcObject.getAudioTracks()[0]
-    track.enabled = !track.enabled
-    document.getElementById('micBtn').classList.toggle('off')
-}
-
-function toggleMute() {
-    const video = document.getElementById('remoteVideo')
-    video.muted = !video.muted
-    document.getElementById('muteBtn').textContent = video.muted ? '🔇' : '🔊'
-}
-
-function toggleCam() {
-    const track = document.getElementById('localVideo').srcObject.getVideoTracks()[0]
-    track.enabled = !track.enabled
-    const isOff = !track.enabled
-    ws.send(JSON.stringify({ type: isOff ? 'cam-off' : 'cam-on' }))
-    document.getElementById('camBtn').classList.toggle('off')
-    document.getElementById('localVideo').style.display = isOff ? 'none' : 'block'
-    document.getElementById('localAvatar').classList.toggle('visible', isOff)
 }
 
 function toggleFullscreen(wrapId) {
@@ -121,3 +120,49 @@ function toggleFullscreen(wrapId) {
         document.exitFullscreen()
     }
 }
+
+function toggleMic() {
+    const track = document.getElementById('localVideo').srcObject.getAudioTracks()[0]
+    track.enabled = !track.enabled
+    const isMuted = !track.enabled
+    document.getElementById('micBtn').classList.toggle('off', isMuted)
+    document.getElementById('micBtn').innerHTML =
+        `<i data-lucide="${isMuted ? 'mic-off' : 'mic'}"></i>`
+    lucide.createIcons()
+}
+
+function toggleCam() {
+    const track = document.getElementById('localVideo').srcObject.getVideoTracks()[0]
+    track.enabled = !track.enabled
+    const isOff = !track.enabled
+    ws.send(JSON.stringify({ type: isOff ? 'cam-off' : 'cam-on' }))
+    document.getElementById('camBtn').classList.toggle('off', isOff)
+    document.getElementById('camBtn').innerHTML =
+        `<i data-lucide="${isOff ? 'video-off' : 'video'}"></i>`
+    document.getElementById('localVideo').style.display = isOff ? 'none' : 'block'
+    document.getElementById('localAvatar').classList.toggle('visible', isOff)
+    lucide.createIcons()
+}
+
+function toggleMute() {
+    const video = document.getElementById('remoteVideo')
+    video.muted = !video.muted
+    const isMuted = video.muted
+    document.getElementById('muteBtn').classList.toggle('off', isMuted)
+    document.getElementById('muteBtn').innerHTML =
+        `<i data-lucide="${isMuted ? 'volume-x' : 'volume-2'}"></i>`
+    lucide.createIcons()
+}
+
+function copyLink() {
+    navigator.clipboard.writeText(location.href).then(() => {
+        document.getElementById('copyBtn').innerHTML = '<i data-lucide="check"></i>'
+        lucide.createIcons()
+        setTimeout(() => {
+            document.getElementById('copyBtn').innerHTML = '<i data-lucide="link"></i>'
+            lucide.createIcons()
+        }, 2000)
+    })
+}
+
+lucide.createIcons()
