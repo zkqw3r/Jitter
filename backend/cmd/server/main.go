@@ -41,7 +41,12 @@ func main() {
 	r.StaticFile("/call.html", cfg.FrontendDir+"/call.html")
 	r.StaticFile("/style.css", cfg.FrontendDir+"/style.css")
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
+	r.StaticFile("/manifest.json", cfg.FrontendDir+"/manifest.json")
+	r.Static("/icons", cfg.FrontendDir+"/icons")
 
+	r.GET("/room/:roomID", func(c *gin.Context) {
+		c.File(cfg.FrontendDir + "/call.html")
+	})
 	r.GET("/ws/:roomID", handler.WSHandler(hub, queries))
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))

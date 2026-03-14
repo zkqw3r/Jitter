@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -47,5 +49,10 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 		hub.Broadcast(roomID, client, []byte(`{"type":"peer-joined"}`))
 		go client.WritePump()
 		client.ReadPump()
+		time.AfterFunc(5*time.Minute, func() {
+			if hub.Count(roomID) == 0 {
+				queries.DeleteRoom(context.Background(), uuid)
+			}
+		})
 	}
 }
