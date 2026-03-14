@@ -49,3 +49,9 @@ func (h *Hub) Broadcast(roomID string, sender *Client, msg []byte) {
 		}
 	}
 }
+
+func (h *Hub) Count(roomID string) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.rooms[roomID])
+}

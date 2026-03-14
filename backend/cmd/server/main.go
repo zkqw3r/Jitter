@@ -39,6 +39,7 @@ func main() {
 	r.StaticFile("/", cfg.FrontendDir+"/index.html")
 	r.StaticFile("/favicon.ico", cfg.FrontendDir+"/favicon.ico")
 	r.StaticFile("/call.html", cfg.FrontendDir+"/call.html")
+	r.StaticFile("/style.css", cfg.FrontendDir+"/style.css")
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
 
 	r.GET("/ws/:roomID", handler.WSHandler(hub, queries))

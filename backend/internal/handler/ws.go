@@ -36,7 +36,15 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 			return
 		}
 		client := signaling.NewClient(conn, hub, roomID)
+
+		if hub.Count(roomID) >= 2 {
+			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room is full"))
+			conn.Close()
+			return
+		}
+
 		hub.Join(roomID, client)
+		hub.Broadcast(roomID, client, []byte(`{"type":"peer-joined"}`))
 		go client.WritePump()
 		client.ReadPump()
 	}
