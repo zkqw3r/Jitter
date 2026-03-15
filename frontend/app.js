@@ -35,9 +35,7 @@ pc.ontrack = ({ streams }) => {
 };
 
 async function startCall() {
-	console.log("startCall: waiting for stream...");
 	await streamReady;
-	console.log("startCall: stream ready, creating offer...");
 	const offer = await pc.createOffer();
 	await pc.setLocalDescription(offer);
 	ws.send(JSON.stringify({ type: "offer", sdp: offer }));
@@ -116,7 +114,6 @@ ws.onmessage = async ({ data }) => {
 	} else if (msg.type === "room-timeout") {
 		endCall();
 	} else if (msg.type === "peer-joined") {
-		console.log("peer-joined received, signalingState:", pc.signalingState);
 		if (pc.signalingState === "stable") {
 			startCall();
 		}
