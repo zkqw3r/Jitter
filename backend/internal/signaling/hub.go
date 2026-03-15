@@ -1,6 +1,7 @@
 package signaling
 
 import (
+	"errors"
 	"sync"
 	"time"
 )
@@ -18,9 +19,13 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) Join(roomID string, c *Client) {
+func (h *Hub) Join(roomID string, c *Client) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if len(h.rooms[roomID]) >= 2 {
+		return errors.New("room is full")
+	}
 
 	if h.rooms[roomID] == nil {
 		h.rooms[roomID] = make(map[*Client]struct{})
@@ -35,6 +40,7 @@ func (h *Hub) Join(roomID string, c *Client) {
 			t.Stop()
 		}
 	}
+	return nil
 }
 
 func (h *Hub) Leave(roomID string, c *Client) {
@@ -64,10 +70,12 @@ func (h *Hub) Broadcast(roomID string, sender *Client, msg []byte) {
 	defer h.mu.RUnlock()
 
 	for c := range h.rooms[roomID] {
-		if c != sender {
-			c.send <- msg
-		}
+		select {
+			case c.send <- msg:
+			default:
+			}
 	}
+
 }
 
 func (h *Hub) Count(roomID string) int {
@@ -84,7 +92,11 @@ func (h *Hub) startTimer(roomID string) {
 		h.mu.RLock()
 		defer h.mu.RUnlock()
 		for c := range h.rooms[roomID] {
-			c.send <- []byte(`{"type":"room-timeout"}`)
+			select {
+				case c.send <- []byte(`{"type":"room-timeout"}`):
+				default:
+				}
 		}
+
 	})
 }

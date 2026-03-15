@@ -22,7 +22,7 @@ func CreateRoomHandler(queries *db.Queries) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		room, err := queries.CreateRoom(ctx.Request.Context())
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "cant create room"})
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "can't create room"})
 			return
 		}
 		ctx.JSON(http.StatusCreated, CreateRoomResponse{RoomID: room.ID.String()})
@@ -38,7 +38,7 @@ func GetRoomHandler(queries *db.Queries) gin.HandlerFunc {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid room ID format"})
 			return
 		}
-		room, err := queries.GetRoom(ctx, uuid)
+		room, err := queries.GetRoom(ctx.Request.Context(), uuid)
 		if err != nil {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 			return

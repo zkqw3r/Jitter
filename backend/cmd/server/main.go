@@ -42,7 +42,6 @@ func main() {
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
 	r.StaticFile("/manifest.json", cfg.FrontendDir+"/manifest.json")
 	r.Static("/icons", cfg.FrontendDir+"/icons")
-	r.StaticFile("/404.html", cfg.FrontendDir+"/404.html")
 
 	r.GET("/room/:roomID", func(c *gin.Context) {
 		c.File(cfg.FrontendDir + "/call.html")
@@ -55,7 +54,7 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    cfg.ServerAddr,
 		Handler: r,
 	}
 

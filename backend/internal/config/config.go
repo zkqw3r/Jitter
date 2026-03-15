@@ -1,10 +1,14 @@
 package config
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 type Config struct {
 	DatabaseURL string
 	FrontendDir string
+	ServerAddr  string
 }
 
 func Load() *Config {
@@ -12,8 +16,17 @@ func Load() *Config {
 	if frontendDir == "" {
 		frontendDir = "./frontend"
 	}
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+	addr := os.Getenv("SERVER_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
 	return &Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DatabaseURL: dbURL,
 		FrontendDir: frontendDir,
+		ServerAddr: addr,
 	}
 }

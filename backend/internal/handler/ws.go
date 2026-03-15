@@ -45,7 +45,12 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 			return
 		}
 
-		hub.Join(roomID, client)
+		err = hub.Join(roomID, client)
+		if err!=nil {
+			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "failed to join room"))
+			conn.Close()
+			return
+		}
 		hub.Broadcast(roomID, client, []byte(`{"type":"peer-joined"}`))
 		go client.WritePump()
 		client.ReadPump()
