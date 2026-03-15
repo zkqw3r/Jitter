@@ -1,4 +1,3 @@
-const params = new URLSearchParams(location.search);
 const ROOM_ID = location.pathname.split("/").pop();
 const ws = new WebSocket(`ws://${location.host}/ws/${ROOM_ID}`);
 const pc = new RTCPeerConnection({
@@ -36,6 +35,9 @@ pc.ontrack = ({ streams }) => {
 };
 
 async function startCall() {
+	console.log("startCall: waiting for stream...");
+	await streamReady;
+	console.log("startCall: stream ready, creating offer...");
 	const offer = await pc.createOffer();
 	await pc.setLocalDescription(offer);
 	ws.send(JSON.stringify({ type: "offer", sdp: offer }));
@@ -80,6 +82,7 @@ ws.onmessage = async ({ data }) => {
 	const msg = JSON.parse(data);
 
 	if (msg.type === "offer") {
+		if (pc.signalingState !== "stable") return;
 		await streamReady;
 		await pc.setRemoteDescription(msg.sdp);
 		remoteDescriptionSet = true;
@@ -91,6 +94,7 @@ ws.onmessage = async ({ data }) => {
 		await pc.setLocalDescription(answer);
 		ws.send(JSON.stringify({ type: "answer", sdp: answer }));
 	} else if (msg.type === "answer") {
+		if (pc.signalingState !== "have-local-offer") return;
 		await pc.setRemoteDescription(msg.sdp);
 		remoteDescriptionSet = true;
 		for (const candidate of iceCandidateBuffer) {
@@ -103,8 +107,6 @@ ws.onmessage = async ({ data }) => {
 		} else {
 			iceCandidateBuffer.push(msg.candidate);
 		}
-	} else if (msg.type === "peer-joined") {
-		startCall();
 	} else if (msg.type === "cam-off") {
 		document.getElementById("remoteVideo").style.display = "none";
 		document.getElementById("remoteAvatar").classList.add("visible");
@@ -113,6 +115,11 @@ ws.onmessage = async ({ data }) => {
 		document.getElementById("remoteAvatar").classList.remove("visible");
 	} else if (msg.type === "room-timeout") {
 		endCall();
+	} else if (msg.type === "peer-joined") {
+		console.log("peer-joined received, signalingState:", pc.signalingState);
+		if (pc.signalingState === "stable") {
+			startCall();
+		}
 	}
 };
 

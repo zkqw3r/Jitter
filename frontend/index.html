@@ -14,7 +14,7 @@
 			<h1 class="logo">Jitter</h1>
 		</div>
 		<div class="container">
-			<button class="btnCreateRoom" onclick="createRoom()">
+			<button class="btn-room" onclick="createRoom()">
 				Создать комнату
 			</button>
 			<hr />
@@ -23,10 +23,11 @@
 				id="roomInput"
 				type="text"
 				placeholder="Вставьте ID комнаты"
+				autocomplete="off"
 			/>
 			<br />
 			<p class="joinError" id="joinError">Комната не найдена</p>
-			<button class="btnJoinRoom" onclick="joinRoom()">
+			<button class="btn-room" onclick="joinRoom()">
 				Присоединиться
 			</button>
 		</div>
