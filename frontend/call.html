@@ -10,6 +10,9 @@
     <meta name="theme-color" content="#111111"
 </head>
 <body>
+    <div class="header">
+			<h1 class="logo">Jitter</h1>
+    </div>
     <div class="videos">
         <div class="video-wrap" id="localWrap">
             <video id="localVideo" autoplay muted playsinline></video>
@@ -29,21 +32,21 @@
     </div>
 
     <div class="controls">
-        <button id="micBtn" onclick="toggleMic()">
+        <button id="micBtn" title="Выключить микрофон" onclick="toggleMic()">
             <i data-lucide="mic"></i>
         </button>
-        <button id="camBtn" onclick="toggleCam()">
+        <button id="camBtn" title="Выключить камеру" onclick="toggleCam()">
             <i data-lucide="video"></i>
         </button>
-        <button id="muteBtn" onclick="toggleMute()">
+        <button id="muteBtn" title="Выключить звук" onclick="toggleMute()">
             <i data-lucide="volume-2"></i>
         </button>
-        <button id="endBtn" onclick="endCall()">
+        <button id="endBtn" title="Завершить звонок" onclick="endCall()">
             <i data-lucide="phone-off"></i>
         </button>
     </div>
 
-    <button id="copyBtn" onclick="copyLink()">
+    <button class="btnCopy" id="copyBtn" title="Скопировать ссылку" onclick="copyLink()">
         <i data-lucide="link"></i>
     </button>
 

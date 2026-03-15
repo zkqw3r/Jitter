@@ -1,59 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jitter</title>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#111111">
-</head>
-<body>
-    <div style="text-align:center">
-        <h1>Jitter</h1>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Jitter</title>
+		<script src="https://unpkg.com/lucide@latest"></script>
+		<link rel="manifest" href="/manifest.json" />
+		<link rel="stylesheet" href="/style.css" />
+		<meta name="theme-color" content="#111111" />
+	</head>
+	<body>
+		<div class="header">
+			<h1 class="logo">Jitter</h1>
+		</div>
+		<div class="container">
+			<button class="btnCreateRoom" onclick="createRoom()">
+				Создать комнату
+			</button>
+			<hr />
+			<input
+				class="roomIDInput"
+				id="roomInput"
+				type="text"
+				placeholder="Вставьте ID комнаты"
+			/>
+			<br />
+			<p class="joinError" id="joinError">Комната не найдена</p>
+			<button class="btnJoinRoom" onclick="joinRoom()">
+				Присоединиться
+			</button>
+		</div>
 
-        <button onclick="createRoom()">Создать комнату</button>
+		<script>
+			async function createRoom() {
+				const res = await fetch("/rooms", { method: "POST" });
+				const data = await res.json();
+				location.href = `/room/${data.room_id}`;
+			}
 
-        <hr style="margin: 24px 0; border-color: #333;">
+			async function joinRoom() {
+				const input = document.getElementById("roomInput").value.trim();
+				if (!input) return;
 
-        <input id="roomInput" type="text" placeholder="Вставьте ID комнаты"
-               style="padding:10px; border-radius:8px; border:none; width:280px; font-size:16px;">
-        <br><br>
-        <button onclick="joinRoom()">Присоединиться</button>
-        <p id="joinError" style="color:#e53935; display:none">Комната не найдена</p>
-    </div>
+				const uuidRegex =
+					/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+				const match = input.match(uuidRegex);
+				if (!match) {
+					document.getElementById("joinError").textContent =
+						"Неверный формат ссылки";
+					document.getElementById("joinError").style.display =
+						"block";
+					return;
+				}
 
-    <script>
-    async function createRoom() {
-        const res = await fetch('/rooms', { method: 'POST' })
-        const data = await res.json()
-        location.href = `/room/${data.room_id}`
-    }
-
-    
-    async function joinRoom() {
-        const input = document.getElementById('roomInput').value.trim()
-        if (!input) return
-
-        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-        const match = input.match(uuidRegex)
-        if (!match) {
-            document.getElementById('joinError').textContent = 'Неверный формат ссылки'
-            document.getElementById('joinError').style.display = 'block'
-            return
-        }
-
-        const id = match[0]
-        const res = await fetch(`/rooms/${id}`)
-        if (res.ok) {
-            location.href = `/room/${id}`
-        } else {
-            document.getElementById('joinError').textContent = 'Комната не найдена'
-            document.getElementById('joinError').style.display = 'block'
-        }
-    }
-
-
-    </script>
-</body>
+				const id = match[0];
+				const res = await fetch(`/rooms/${id}`);
+				if (res.ok) {
+					location.href = `/room/${id}`;
+				} else {
+					document.getElementById("joinError").textContent =
+						"Комната не найдена";
+					document.getElementById("joinError").style.display =
+						"block";
+				}
+			}
+		</script>
+	</body>
 </html>

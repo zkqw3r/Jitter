@@ -20,7 +20,6 @@ import (
 func main() {
 	_ = godotenv.Load()
 	cfg := config.Load()
-	log.Println("Frontend dir:", cfg.FrontendDir)
 
 	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
@@ -37,12 +36,13 @@ func main() {
 	r := gin.Default()
 
 	r.StaticFile("/", cfg.FrontendDir+"/index.html")
-	r.StaticFile("/favicon.ico", cfg.FrontendDir+"/favicon.ico")
+	r.StaticFile("/favicon.ico", cfg.FrontendDir+"/icons/favicon.ico")
 	r.StaticFile("/call.html", cfg.FrontendDir+"/call.html")
 	r.StaticFile("/style.css", cfg.FrontendDir+"/style.css")
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
 	r.StaticFile("/manifest.json", cfg.FrontendDir+"/manifest.json")
 	r.Static("/icons", cfg.FrontendDir+"/icons")
+	r.StaticFile("/404.html", cfg.FrontendDir+"/404.html")
 
 	r.GET("/room/:roomID", func(c *gin.Context) {
 		c.File(cfg.FrontendDir + "/call.html")
@@ -50,6 +50,9 @@ func main() {
 	r.GET("/ws/:roomID", handler.WSHandler(hub, queries))
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
+	r.NoRoute(func(c *gin.Context) {
+		c.File(cfg.FrontendDir + "/404.html")
+	})
 
 	srv := &http.Server{
 		Addr:    ":8080",
@@ -70,6 +73,6 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Println("shutdown error:", err)
 	}
-	log.Println("server stopped")
+	log.Println("\nserver stopped")
 
 }
