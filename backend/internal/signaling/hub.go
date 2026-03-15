@@ -70,12 +70,14 @@ func (h *Hub) Broadcast(roomID string, sender *Client, msg []byte) {
 	defer h.mu.RUnlock()
 
 	for c := range h.rooms[roomID] {
+		if c == sender {
+			continue
+		}
 		select {
 			case c.send <- msg:
 			default:
-			}
+		}
 	}
-
 }
 
 func (h *Hub) Count(roomID string) int {
