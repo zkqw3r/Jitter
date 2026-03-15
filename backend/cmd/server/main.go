@@ -49,6 +49,19 @@ func main() {
 	r.GET("/ws/:roomID", handler.WSHandler(hub, queries))
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
+	r.GET("/api/ice-config", func(c *gin.Context) {
+    c.JSON(200, gin.H{
+			"iceServers": []gin.H{{
+				"urls": []string{
+					"stun:skebob4ik.fun:3478",
+					"turn:skebob4ik.fun:3478",
+				},
+				"username":   cfg.TURNUsername,
+				"credential": cfg.TURNCredential,
+			}},
+		})
+	})
+
 	r.NoRoute(func(c *gin.Context) {
 		c.File(cfg.FrontendDir + "/404.html")
 	})

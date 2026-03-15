@@ -1,8 +1,10 @@
 const ROOM_ID = location.pathname.split("/").pop();
-const ws = new WebSocket(`ws://${location.host}/ws/${ROOM_ID}`);
-const pc = new RTCPeerConnection({
-	iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-});
+const ws = new WebSocket(`wss://${location.host}/ws/${ROOM_ID}`);
+
+const res = await fetch("/api/ice-config");
+const iceConfig = await res.json();
+const pc = new RTCPeerConnection(iceConfig);
+
 const iceCandidateBuffer = [];
 let remoteDescriptionSet = false;
 
