@@ -148,6 +148,27 @@ button.off:hover {
 	margin-top: 16px;
 }
 
+.camera-flip {
+	position: absolute;
+	bottom: 8px;
+	left: 8px;
+	z-index: 10;
+	display: none;
+}
+
+.camera-flip button {
+	background: rgba(0, 0, 0, 0.5);
+	border: none;
+	border-radius: 50%;
+	width: 36px;
+	height: 36px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: white;
+}
+
 /* Connection error */
 .joinError {
 	display: none;
@@ -185,6 +206,10 @@ video {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+}
+
+.localVideo {
+	transform: scaleX(-1);
 }
 
 /* Profile picture when the camera is off */

@@ -1,55 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jitter</title>
-    <link rel="stylesheet" href="/style.css">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#111111"
-</head>
-<body>
-    <div class="header">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Jitter</title>
+		<link rel="stylesheet" href="/style.css" />
+		<link rel="manifest" href="/manifest.json" />
+		<meta name="theme-color" content="#111111" />
+	</head>
+	<body>
+		<div class="header">
 			<h1 class="logo">Jitter</h1>
-    </div>
-    <div class="videos">
-        <div class="video-wrap" id="localWrap">
-            <video id="localVideo" autoplay muted playsinline></video>
-            <div class="avatar" id="localAvatar">🙂</div>
-            <div class="video-overlay">
-                <button class="fs-btn" onclick="toggleFullscreen('localWrap')">⛶</button>
-            </div>
-        </div>
+		</div>
+		<div class="videos">
+			<div class="video-wrap" id="localWrap">
+				<video
+					class="localVideo"
+					id="localVideo"
+					autoplay
+					muted
+					playsinline
+				></video>
+				<div class="avatar" id="localAvatar">🙂</div>
+				<div class="camera-flip">
+					<button id="flipCamera">⇄</button>
+				</div>
+				<div class="video-overlay">
+					<button class="fs-btn" id="fsLocal">⛶</button>
+				</div>
+			</div>
+			<div class="video-wrap" id="remoteWrap">
+				<video id="remoteVideo" autoplay playsinline></video>
+				<div class="avatar" id="remoteAvatar">👤</div>
+				<div class="video-overlay">
+					<button class="fs-btn" id="fsRemote">⛶</button>
+				</div>
+			</div>
+		</div>
 
-        <div class="video-wrap" id="remoteWrap">
-            <video id="remoteVideo" autoplay playsinline></video>
-            <div class="avatar" id="remoteAvatar">👤</div>
-            <div class="video-overlay">
-                <button class="fs-btn" onclick="toggleFullscreen('remoteWrap')">⛶</button>
-            </div>
-        </div>
-    </div>
+		<div class="controls">
+			<button id="micBtn" title="Выключить микрофон">
+				<i data-lucide="mic"></i>
+			</button>
+			<button id="camBtn" title="Выключить камеру">
+				<i data-lucide="video"></i>
+			</button>
+			<button id="muteBtn" title="Выключить звук">
+				<i data-lucide="volume-2"></i>
+			</button>
+			<button id="endBtn" title="Завершить звонок">
+				<i data-lucide="phone-off"></i>
+			</button>
+		</div>
 
-    <div class="controls">
-        <button id="micBtn" title="Выключить микрофон" onclick="toggleMic()">
-            <i data-lucide="mic"></i>
-        </button>
-        <button id="camBtn" title="Выключить камеру" onclick="toggleCam()">
-            <i data-lucide="video"></i>
-        </button>
-        <button id="muteBtn" title="Выключить звук" onclick="toggleMute()">
-            <i data-lucide="volume-2"></i>
-        </button>
-        <button id="endBtn" title="Завершить звонок" onclick="endCall()">
-            <i data-lucide="phone-off"></i>
-        </button>
-    </div>
-
-    <button class="btnCopy" id="copyBtn" title="Скопировать ссылку" onclick="copyLink()">
-        <i data-lucide="link"></i>
-    </button>
-
-    <script src="/app.js"></script>
-</body>
+		<button class="btnCopy" id="copyBtn" title="Скопировать ссылку">
+			<i data-lucide="link"></i>
+		</button>
+		<script src="/lucide.min.js"></script>
+		<script type="module" src="/app.js"></script>
+	</body>
 </html>
