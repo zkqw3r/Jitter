@@ -42,6 +42,7 @@ func main() {
 	r.StaticFile("/app.js", cfg.FrontendDir+"/app.js")
 	r.StaticFile("/manifest.json", cfg.FrontendDir+"/manifest.json")
 	r.Static("/icons", cfg.FrontendDir+"/icons")
+	r.StaticFile("/lucide.min.js", cfg.FrontendDir+"/lucide.min.js")
 
 	r.GET("/room/:roomID", func(c *gin.Context) {
 		c.File(cfg.FrontendDir + "/call.html")
@@ -51,14 +52,21 @@ func main() {
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
 	r.GET("/api/ice-config", func(c *gin.Context) {
     c.JSON(200, gin.H{
-			"iceServers": []gin.H{{
-				"urls": []string{
-					"stun:skebob4ik.fun:3478",
-					"turn:skebob4ik.fun:3478",
+			"iceServers": []gin.H{
+				{
+					"urls": []string{cfg.STUN_URL},
 				},
-				"username":   cfg.TURNUsername,
-				"credential": cfg.TURNCredential,
-			}},
+				{
+					"urls": []string{
+						cfg.TURN_URL_UDP,
+						cfg.TURN_URL_TCP,
+						cfg.TURN_URL_TLS,
+					},
+					"username":   cfg.TURNUsername,
+					"credential": cfg.TURNCredential,
+				},
+			},
+
 		})
 	})
 

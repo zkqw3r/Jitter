@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -38,26 +37,17 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 			return
 		}
 		client := signaling.NewClient(conn, hub, roomID)
-
-		if hub.Count(roomID) >= 2 {
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room is full"))
-			conn.Close()
-			return
-		}
-
-		err = hub.Join(roomID, client)
+		
+		err = hub.Join(roomID, client, func() {
+			queries.DeleteRoom(context.Background(), uuid)
+		})
 		if err!=nil {
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "failed to join room"))
+			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room is full"))
 			conn.Close()
 			return
 		}
 		hub.Broadcast(roomID, client, []byte(`{"type":"peer-joined"}`))
 		go client.WritePump()
 		client.ReadPump()
-		time.AfterFunc(5*time.Minute, func() {
-			if hub.Count(roomID) == 0 {
-				queries.DeleteRoom(context.Background(), uuid)
-			}
-		})
 	}
 }

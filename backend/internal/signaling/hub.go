@@ -9,17 +9,26 @@ import (
 type Hub struct {
 	mu     sync.RWMutex
 	rooms  map[string]map[*Client]struct{}
-	timers map[string]*time.Timer
+	timers map[string]chan struct{}
+	callbacks map[string]func()
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		rooms:  make(map[string]map[*Client]struct{}),
-		timers: make(map[string]*time.Timer),
+		timers: make(map[string]chan struct{}),
+		callbacks: make(map[string]func()),
 	}
 }
 
-func (h *Hub) Join(roomID string, c *Client) error {
+func (h *Hub) stopTimer(roomID string) {
+	if done, ok := h.timers[roomID]; ok {
+		close(done)
+		delete(h.timers, roomID)
+	}
+}
+
+func (h *Hub) Join(roomID string, c *Client, fn func()) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -34,11 +43,10 @@ func (h *Hub) Join(roomID string, c *Client) error {
 
 	switch len(h.rooms[roomID]) {
 	case 1:
+		h.callbacks[roomID] = fn
 		h.startTimer(roomID)
 	case 2:
-		if t := h.timers[roomID]; t != nil {
-			t.Stop()
-		}
+		h.stopTimer(roomID)
 	}
 	return nil
 }
@@ -56,10 +64,8 @@ func (h *Hub) Leave(roomID string, c *Client) {
 	switch len(clients) {
 	case 0:
 		delete(h.rooms, roomID)
-		if t := h.timers[roomID]; t != nil {
-			t.Stop()
-		}
-		delete(h.timers, roomID)
+		h.stopTimer(roomID)
+		delete(h.callbacks, roomID)
 	case 1:
 		h.startTimer(roomID)
 	}
@@ -87,18 +93,40 @@ func (h *Hub) Count(roomID string) int {
 }
 
 func (h *Hub) startTimer(roomID string) {
-	if t := h.timers[roomID]; t != nil {
-		t.Stop()
-	}
-	h.timers[roomID] = time.AfterFunc(5*time.Minute, func() {
-		h.mu.RLock()
-		defer h.mu.RUnlock()
-		for c := range h.rooms[roomID] {
-			select {
-				case c.send <- []byte(`{"type":"room-timeout"}`):
-				default:
-				}
+	h.stopTimer(roomID)
+
+	done := make(chan struct{})
+	h.timers[roomID] = done
+
+	go func() {
+		select {
+		case <- time.After(5*time.Minute):
+			
+		case <-done:
+			return
 		}
 
-	})
+		h.mu.Lock()
+		defer h.mu.Unlock()
+
+		if h.timers[roomID] != done {
+			return
+		}
+		
+		for c:= range h.rooms[roomID] {
+			select {
+			case c.send <- []byte(`{"type":"room-timeout"}`):
+			default:
+			}
+		}
+
+
+		delete(h.rooms, roomID)
+		delete(h.timers, roomID)
+
+		if cb, ok := h.callbacks[roomID]; ok {
+			cb()
+			delete(h.callbacks, roomID)
+		}
+	}()
 }
