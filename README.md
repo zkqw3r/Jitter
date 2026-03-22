@@ -7,13 +7,10 @@
 [![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-<!--
 <div align="center">
-  <h3>🔊 Call anyone. No apps. No nonsense.</h3>
   <img src="demo.gif" width="100%" alt="Jitter demo — WebRTC calls in action">
   <p><i>Peer-to-peer voice & video calls right from your browser, powered by Go</i></p>
 </div>
--->
 
 ---
 
