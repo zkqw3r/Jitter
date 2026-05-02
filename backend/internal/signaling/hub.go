@@ -7,16 +7,16 @@ import (
 )
 
 type Hub struct {
-	mu     sync.RWMutex
-	rooms  map[string]map[*Client]struct{}
-	timers map[string]chan struct{}
+	mu        sync.RWMutex
+	rooms     map[string]map[*Client]struct{}
+	timers    map[string]chan struct{}
 	callbacks map[string]func()
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		rooms:  make(map[string]map[*Client]struct{}),
-		timers: make(map[string]chan struct{}),
+		rooms:     make(map[string]map[*Client]struct{}),
+		timers:    make(map[string]chan struct{}),
 		callbacks: make(map[string]func()),
 	}
 }
@@ -80,8 +80,8 @@ func (h *Hub) Broadcast(roomID string, sender *Client, msg []byte) {
 			continue
 		}
 		select {
-			case c.send <- msg:
-			default:
+		case c.send <- msg:
+		default:
 		}
 	}
 }
@@ -100,8 +100,8 @@ func (h *Hub) startTimer(roomID string) {
 
 	go func() {
 		select {
-		case <- time.After(5*time.Minute):
-			
+		case <-time.After(5 * time.Minute):
+
 		case <-done:
 			return
 		}
@@ -112,14 +112,13 @@ func (h *Hub) startTimer(roomID string) {
 		if h.timers[roomID] != done {
 			return
 		}
-		
-		for c:= range h.rooms[roomID] {
+
+		for c := range h.rooms[roomID] {
 			select {
 			case c.send <- []byte(`{"type":"room-timeout"}`):
 			default:
 			}
 		}
-
 
 		delete(h.rooms, roomID)
 		delete(h.timers, roomID)

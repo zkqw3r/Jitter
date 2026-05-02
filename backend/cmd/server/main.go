@@ -51,22 +51,33 @@ func main() {
 	r.POST("/rooms", handler.CreateRoomHandler(queries))
 	r.GET("/rooms/:roomID", handler.GetRoomHandler(queries))
 	r.GET("/api/ice-config", func(c *gin.Context) {
-    c.JSON(200, gin.H{
-			"iceServers": []gin.H{
-				{
-					"urls": []string{cfg.STUN_URL},
-				},
-				{
-					"urls": []string{
-						cfg.TURN_URL_UDP,
-						cfg.TURN_URL_TCP,
-						cfg.TURN_URL_TLS,
-					},
-					"username":   cfg.TURNUsername,
-					"credential": cfg.TURNCredential,
-				},
+		iceServers := []gin.H{
+			{
+				"urls": []string{cfg.STUN_URL},
 			},
+		}
 
+		if cfg.TURN_URL_UDP != "" || cfg.TURN_URL_TCP != "" || cfg.TURN_URL_TLS != "" {
+			turnURLs := []string{}
+			if cfg.TURN_URL_UDP != "" {
+				turnURLs = append(turnURLs, cfg.TURN_URL_UDP)
+			}
+			if cfg.TURN_URL_TCP != "" {
+				turnURLs = append(turnURLs, cfg.TURN_URL_TCP)
+			}
+			if cfg.TURN_URL_TLS != "" {
+				turnURLs = append(turnURLs, cfg.TURN_URL_TLS)
+			}
+
+			iceServers = append(iceServers, gin.H{
+				"urls":       turnURLs,
+				"username":   cfg.TURNUsername,
+				"credential": cfg.TURNCredential,
+			})
+		}
+
+		c.JSON(200, gin.H{
+			"iceServers": iceServers,
 		})
 	})
 

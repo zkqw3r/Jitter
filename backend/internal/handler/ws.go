@@ -37,11 +37,11 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 			return
 		}
 		client := signaling.NewClient(conn, hub, roomID)
-		
+
 		err = hub.Join(roomID, client, func() {
 			queries.DeleteRoom(context.Background(), uuid)
 		})
-		if err!=nil {
+		if err != nil {
 			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room is full"))
 			conn.Close()
 			return
