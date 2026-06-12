@@ -244,6 +244,9 @@ ws.onmessage = async ({ data }) => {
 	if (!msg || typeof msg !== "object" || typeof msg.type !== "string") return;
 
 	try {
+		if (["offer", "answer", "ice", "peer-joined"].includes(msg.type)) {
+			await streamReady;
+		}
 		switch (msg.type) {
 			case "offer":
 				if (!pc || pc.signalingState !== "stable") return;
@@ -251,7 +254,6 @@ ws.onmessage = async ({ data }) => {
 				await pc.setRemoteDescription(msg.sdp);
 				remoteDescriptionSet = true;
 				await drainIceBuffer();
-				await streamReady;
 				{
 					const answer = await pc.createAnswer();
 					await pc.setLocalDescription(answer);
