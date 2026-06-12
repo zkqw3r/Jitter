@@ -5,7 +5,7 @@ services:
         ports:
             - "80:80"
             - "443:443"
-        command: caddy reverse-proxy --from your_domain.com --to app:8080
+        command: caddy reverse-proxy --from ${DOMAIN} --to app:8080
         depends_on:
             - app
 
@@ -16,12 +16,28 @@ services:
         environment:
             - DATABASE_URL=${DATABASE_URL}
             - FRONTEND_DIR=./frontend
-            - TURN_USERNAME=${TURN_USERNAME}
-            - TURN_CREDENTIAL=${TURN_CREDENTIAL}
+            - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+            - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+            - TURN_USERNAME=${TURN_USERNAME:-}
+            - TURN_CREDENTIAL=${TURN_CREDENTIAL:-}
+            - TURN_SECRET=${TURN_SECRET:-}
+            - TURN_TTL_SECONDS=${TURN_TTL_SECONDS:-3600}
+            - TURN_URL_UDP=${TURN_URL_UDP:-}
+            - TURN_URL_TCP=${TURN_URL_TCP:-}
+            - TURN_URL_TLS=${TURN_URL_TLS:-}
+            - STUN_URL=${STUN_URL:-}
+            - GIN_MODE=release
         depends_on:
             db:
                 condition: service_healthy
         restart: unless-stopped
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
 
     db:
         image: postgres:16-alpine
@@ -37,12 +53,20 @@ services:
             interval: 5s
             timeout: 5s
             retries: 5
+        restart: unless-stopped
+        security_opt:
+            - no-new-privileges:true
 
     turn:
         image: coturn/coturn:latest
         network_mode: host
+        command:
+            - -c=/etc/coturn/turnserver.conf
+            - --static-auth-secret=${TURN_SECRET}
+            - --realm=${TURN_REALM}
+            - --external-ip=${TURN_EXTERNAL_IP}
         volumes:
-            - ./docker/coturn/turnserver.conf:/etc/coturn/turnserver.conf
+            - ./docker/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
         restart: unless-stopped
 
 volumes:

@@ -1,3 +1,10 @@
+.env
+*.env
 backend/.env
 backend/.git
+.git
+.idea
+.vscode
+ideas/
+docker/coturn/certs/
 **/*.md

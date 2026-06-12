@@ -2,12 +2,21 @@ package signaling
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 )
 
+const idleRoomTTL = 5 * time.Minute
+
+var (
+	peerJoinedMsg = []byte(`{"type":"peer-joined"}`)
+	peerLeftMsg   = []byte(`{"type":"peer-left"}`)
+	roomTimeout   = []byte(`{"type":"room-timeout"}`)
+)
+
 type Hub struct {
-	mu        sync.RWMutex
+	mu        sync.Mutex
 	rooms     map[string]map[*Client]struct{}
 	timers    map[string]chan struct{}
 	callbacks map[string]func()
@@ -30,9 +39,9 @@ func (h *Hub) stopTimer(roomID string) {
 
 func (h *Hub) Join(roomID string, c *Client, fn func()) error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	if len(h.rooms[roomID]) >= 2 {
+		h.mu.Unlock()
 		return errors.New("room is full")
 	}
 
@@ -43,11 +52,14 @@ func (h *Hub) Join(roomID string, c *Client, fn func()) error {
 
 	switch len(h.rooms[roomID]) {
 	case 1:
-		h.callbacks[roomID] = fn
+		if _, exists := h.callbacks[roomID]; !exists {
+			h.callbacks[roomID] = fn
+		}
 		h.startTimer(roomID)
 	case 2:
 		h.stopTimer(roomID)
 	}
+	h.mu.Unlock()
 	return nil
 }
 
@@ -59,36 +71,58 @@ func (h *Hub) Leave(roomID string, c *Client) {
 	if !ok {
 		return
 	}
+	if _, present := clients[c]; !present {
+		return
+	}
 	delete(clients, c)
+	close(c.send)
 
+	var cb func()
+	var remaining []*Client
 	switch len(clients) {
 	case 0:
 		delete(h.rooms, roomID)
 		h.stopTimer(roomID)
+		cb = h.callbacks[roomID]
 		delete(h.callbacks, roomID)
 	case 1:
+		for other := range clients {
+			remaining = append(remaining, other)
+		}
 		h.startTimer(roomID)
+	}
+	h.mu.Unlock()
+
+	for _, other := range remaining {
+		trySend(other, peerLeftMsg)
+	}
+	if cb != nil {
+		safeCallback(cb)
 	}
 }
 
 func (h *Hub) Broadcast(roomID string, sender *Client, msg []byte) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
+	h.mu.Lock()
+	targets := make([]*Client, 0, len(h.rooms[roomID]))
 	for c := range h.rooms[roomID] {
-		if c == sender {
-			continue
+		if c != sender {
+			targets = append(targets, c)
 		}
-		select {
-		case c.send <- msg:
-		default:
-		}
+	}
+	h.mu.Unlock()
+
+	for _, c := range targets {
+		trySend(c, msg)
 	}
 }
 
+func (h *Hub) BroadcastPeerJoined(roomID string, newcomer *Client) {
+	h.Broadcast(roomID, newcomer, peerJoinedMsg)
+}
+
 func (h *Hub) Count(roomID string) int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	return len(h.rooms[roomID])
 }
 
@@ -99,33 +133,55 @@ func (h *Hub) startTimer(roomID string) {
 	h.timers[roomID] = done
 
 	go func() {
-		select {
-		case <-time.After(5 * time.Minute):
+		timer := time.NewTimer(idleRoomTTL)
+		defer timer.Stop()
 
+		select {
+		case <-timer.C:
 		case <-done:
 			return
 		}
 
 		h.mu.Lock()
-		defer h.mu.Unlock()
-
 		if h.timers[roomID] != done {
+			h.mu.Unlock()
 			return
 		}
-
-		for c := range h.rooms[roomID] {
-			select {
-			case c.send <- []byte(`{"type":"room-timeout"}`):
-			default:
-			}
-		}
-
-		delete(h.rooms, roomID)
 		delete(h.timers, roomID)
 
-		if cb, ok := h.callbacks[roomID]; ok {
-			cb()
-			delete(h.callbacks, roomID)
+		clients := h.rooms[roomID]
+		delete(h.rooms, roomID)
+
+		cb := h.callbacks[roomID]
+		delete(h.callbacks, roomID)
+		h.mu.Unlock()
+
+		for c := range clients {
+			trySend(c, roomTimeout)
+			_ = c.ws.Close()
+		}
+		if cb != nil {
+			safeCallback(cb)
 		}
 	}()
+}
+
+func trySend(c *Client, msg []byte) {
+	defer func() {
+		_ = recover()
+	}()
+	select {
+	case c.send <- msg:
+	default:
+		log.Printf("signaling: dropping message, slow client %p", c)
+	}
+}
+
+func safeCallback(cb func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("signaling: callback panic: %v", r)
+		}
+	}()
+	cb()
 }

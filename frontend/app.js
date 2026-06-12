@@ -1,67 +1,176 @@
 const ROOM_ID = location.pathname.split("/").pop();
-const ws = new WebSocket(`wss://${location.host}/ws/${ROOM_ID}`);
+const WS_PROTO = location.protocol === "https:" ? "wss:" : "ws:";
+const ws = new WebSocket(`${WS_PROTO}//${location.host}/ws/${encodeURIComponent(ROOM_ID)}`);
 
-const res = await fetch("/api/ice-config");
-const iceConfig = await res.json();
-const pc = new RTCPeerConnection(iceConfig);
+const $ = (id) => document.getElementById(id);
 
-const iceCandidateBuffer = [];
+const STATUS_PRESETS = {
+	roomFull: {
+		icon: "group",
+		title: "Room Full",
+		text: "Room Capacity Reached (Max 2).",
+	},
+	invalidId: {
+		icon: "link_off",
+		title: "Invalid ID",
+		text: "Invalid ID/Link. Check and try again.",
+	},
+	connectionLost: {
+		icon: "wifi_off",
+		title: "Connection Lost",
+		text: "Lost connection to the server.",
+	},
+	timeout: {
+		icon: "schedule",
+		title: "Room Timeout",
+		text: "The room has expired due to inactivity.",
+	},
+	peerLeft: {
+		icon: "person_remove",
+		title: "Peer Left",
+		text: "The other participant has left the room.",
+	},
+};
+
+function showStatus(presetKey) {
+	const preset = STATUS_PRESETS[presetKey];
+	if (!preset) return;
+	const overlay = $("statusOverlay");
+	if (!overlay) return;
+	$("statusIcon").textContent = preset.icon;
+	$("statusTitle").textContent = preset.title;
+	$("statusText").textContent = preset.text;
+	overlay.hidden = false;
+}
+
+
+let pc = null;
+let iceConfig = { iceServers: [] };
 let remoteDescriptionSet = false;
-
+const iceCandidateBuffer = [];
 let currentFacingMode = "user";
+let localStream = null;
+
+async function loadIceConfig() {
+	try {
+		const res = await fetch("/api/ice-config", { cache: "no-store" });
+		if (!res.ok) throw new Error(`ice-config ${res.status}`);
+		return await res.json();
+	} catch (err) {
+		console.warn("ice-config fallback:", err);
+		return { iceServers: [] };
+	}
+}
+
+function createPeerConnection(config) {
+	const peer = new RTCPeerConnection(config);
+
+	peer.onicecandidate = ({ candidate }) => {
+		if (candidate && ws.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify({ type: "ice", candidate }));
+		}
+	};
+
+	peer.ontrack = ({ streams }) => {
+		const video = $("remoteVideo");
+		const avatar = $("remoteAvatar");
+		if (!video || !streams[0]) return;
+		video.srcObject = streams[0];
+		streams[0].getVideoTracks().forEach((track) => {
+			track.onmute = () => {
+				video.style.display = "none";
+				if (avatar) {
+					avatar.classList.remove("hidden");
+					avatar.classList.add("flex");
+				}
+			};
+			track.onunmute = () => {
+				video.style.display = "block";
+				if (avatar) {
+					avatar.classList.add("hidden");
+					avatar.classList.remove("flex");
+				}
+			};
+		});
+	};
+
+	peer.oniceconnectionstatechange = () => {
+		if (peer.iceConnectionState === "failed") {
+			console.warn("ICE connection failed; attempting restart");
+			try { peer.restartIce(); } catch (_) {}
+		}
+	};
+
+	return peer;
+}
+
+
+async function acquireMedia() {
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: { facingMode: "user" },
+			audio: true,
+		});
+		return stream;
+	} catch (err) {
+		console.warn("getUserMedia AV failed, falling back to video-only:", err);
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: "user" },
+				audio: false,
+			});
+			alert("Микрофон недоступен, работаем только с видео");
+			return stream;
+		} catch (err2) {
+			alert("Не удалось получить доступ к камере/микрофону: " + err2.message);
+			return null;
+		}
+	}
+}
 
 async function checkAndShowFlipButton() {
 	const isTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
 	if (!isTouch) return;
-
 	try {
 		const devices = await navigator.mediaDevices.enumerateDevices();
 		const videoInputs = devices.filter((d) => d.kind === "videoinput");
-
 		if (videoInputs.length > 1) {
-			document.querySelector(".camera-flip").style.display = "block";
+			const flipBtn = $("flipCamera");
+			if (flipBtn) flipBtn.classList.remove("hidden");
 		}
 	} catch (err) {
 		console.warn("enumerateDevices failed:", err);
 	}
 }
+
 async function flipCamera() {
+	if (!pc || !localStream) return;
 	const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
 	if (!videoSender) return;
 
-	const localVideo = document.getElementById("localVideo");
-	const nextFacingMode =
-		currentFacingMode === "user" ? "environment" : "user";
+	const localVideo = $("localVideo");
+	const nextFacingMode = currentFacingMode === "user" ? "environment" : "user";
 
-	const audioTracks = localVideo.srcObject
-		? localVideo.srcObject.getAudioTracks()
-		: [];
-	if (localVideo.srcObject) {
-		localVideo.srcObject.getVideoTracks().forEach((t) => t.stop());
-	}
-	videoSender.track.stop();
-
-	localVideo.srcObject = null;
+	const audioTracks = localStream.getAudioTracks();
+	localStream.getVideoTracks().forEach((t) => t.stop());
+	if (videoSender.track) videoSender.track.stop();
 
 	try {
 		const newStream = await navigator.mediaDevices.getUserMedia({
 			video: { facingMode: { ideal: nextFacingMode } },
 			audio: false,
 		});
-
 		const newTrack = newStream.getVideoTracks()[0];
-
 		await videoSender.replaceTrack(newTrack);
 
-		const combinedStream = new MediaStream([newTrack, ...audioTracks]);
-		localVideo.srcObject = combinedStream;
+		localStream = new MediaStream([newTrack, ...audioTracks]);
+		localVideo.srcObject = localStream;
 
 		currentFacingMode = nextFacingMode;
 		localVideo.style.transform =
 			currentFacingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
 	} catch (err) {
 		console.error("flipCamera error:", err);
-
 		try {
 			const fallbackStream = await navigator.mediaDevices.getUserMedia({
 				video: { facingMode: { ideal: currentFacingMode } },
@@ -69,239 +178,284 @@ async function flipCamera() {
 			});
 			const fallbackTrack = fallbackStream.getVideoTracks()[0];
 			await videoSender.replaceTrack(fallbackTrack);
-			localVideo.srcObject = new MediaStream([
-				fallbackTrack,
-				...audioTracks,
-			]);
+			localStream = new MediaStream([fallbackTrack, ...audioTracks]);
+			localVideo.srcObject = localStream;
 		} catch (fallbackErr) {
 			console.error("flipCamera fallback failed:", fallbackErr);
 		}
 	}
 }
 
-const streamReady = navigator.mediaDevices
-	.getUserMedia({ video: { facingMode: "user" }, audio: true })
-	.then((stream) => {
-		document.getElementById("localVideo").srcObject = stream;
-		stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-		checkAndShowFlipButton();
-	})
-	.catch((err) => {
-		console.error("Ошибка камеры/микрофона:", err);
-		return navigator.mediaDevices
-			.getUserMedia({ video: { facingMode: "user" }, audio: false })
-			.then((stream) => {
-				document.getElementById("localVideo").srcObject = stream;
-				stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-				alert("Микрофон недоступен, работаем только с видео");
-			})
-			.catch((err2) => {
-				alert(
-					"Не удалось получить доступ к камере/микрофону: " +
-						err2.message,
-				);
-			});
-	});
-
-pc.onicecandidate = ({ candidate }) => {
-	if (candidate) {
-		ws.send(JSON.stringify({ type: "ice", candidate }));
-	}
-};
-
-pc.ontrack = ({ streams }) => {
-	const video = document.getElementById("remoteVideo");
-	video.srcObject = streams[0];
-	streams[0].getVideoTracks().forEach((track) => {
-		track.onmute = () => {
-			video.style.display = "none";
-			document.getElementById("remoteAvatar").classList.add("visible");
-		};
-		track.onunmute = () => {
-			video.style.display = "block";
-			document.getElementById("remoteAvatar").classList.remove("visible");
-		};
-	});
-};
 
 async function startCall() {
-	await streamReady;
+	if (!pc) return;
+	if (pc.signalingState !== "stable") return;
 	const offer = await pc.createOffer();
 	await pc.setLocalDescription(offer);
-	ws.send(JSON.stringify({ type: "offer", sdp: offer }));
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(JSON.stringify({ type: "offer", sdp: offer }));
+	}
+}
+
+function teardownRemote() {
+	const video = $("remoteVideo");
+	if (video) {
+		try { video.srcObject?.getTracks().forEach((t) => t.stop()); } catch (_) {}
+		video.srcObject = null;
+		video.style.display = "none";
+	}
+	const avatar = $("remoteAvatar");
+	if (avatar) {
+		avatar.classList.remove("hidden");
+		avatar.classList.add("flex");
+	}
 }
 
 async function endCall() {
-	const stream = document.getElementById("localVideo").srcObject;
-	stream.getTracks().forEach((t) => t.stop());
-	pc.close();
-	ws.close();
+	try { localStream?.getTracks().forEach((t) => t.stop()); } catch (_) {}
+	try { pc?.getSenders().forEach((s) => s.track?.stop()); } catch (_) {}
+	try { pc?.close(); } catch (_) {}
+	try { ws.close(1000, "bye"); } catch (_) {}
 	location.href = "/";
 }
 
+
 ws.onclose = (event) => {
 	if (event.code === 4000) {
-		document.body.innerHTML = `
-            <div class="header">
-                <h1 class="logo">Jitter</h1>
-            </div>
-            <div class="error-html-page">
-                <h2>🚫 Комната заполнена</h2>
-                <p>В этом звонке уже участвуют 2 человека</p>
-                <a href="/" class="back-link">← На главную</a>
-            </div>
-        `;
+		showStatus("roomFull");
+		return;
+	}
+	if (event.code !== 1000 && event.code !== 1001) {
+		showStatus("connectionLost");
 	}
 };
 
 ws.onerror = () => {
-	document.body.innerHTML = `
-        <div class="header">
-            <h1 class="logo">Jitter</h1>
-        </div>
-        <div class="error-html-page">
-            <h2>❌ Комната не найдена</h2>
-            <p>Возможно, ссылка устарела или комната была удалена</p>
-            <a href="/" class="back-link">← На главную</a>
-        </div>`;
+	showStatus("connectionLost");
 };
 
 ws.onmessage = async ({ data }) => {
+	let msg;
 	try {
-		const msg = JSON.parse(data);
+		msg = JSON.parse(data);
+	} catch (_) {
+		return;
+	}
+	if (!msg || typeof msg !== "object" || typeof msg.type !== "string") return;
 
-		if (msg.type === "offer") {
-			if (pc.signalingState !== "stable") return;
-			await pc.setRemoteDescription(msg.sdp);
-			remoteDescriptionSet = true;
-			for (const candidate of iceCandidateBuffer) {
-				await pc.addIceCandidate(candidate);
-			}
-			iceCandidateBuffer.length = 0;
-			await streamReady;
-			const answer = await pc.createAnswer();
-			await pc.setLocalDescription(answer);
-			ws.send(JSON.stringify({ type: "answer", sdp: answer }));
-		} else if (msg.type === "answer") {
-			if (pc.signalingState !== "have-local-offer") return;
-			await pc.setRemoteDescription(msg.sdp);
-			remoteDescriptionSet = true;
-			for (const candidate of iceCandidateBuffer) {
-				await pc.addIceCandidate(candidate);
-			}
-			iceCandidateBuffer.length = 0;
-		} else if (msg.type === "ice") {
-			if (remoteDescriptionSet) {
-				await pc.addIceCandidate(msg.candidate);
-			} else {
-				iceCandidateBuffer.push(msg.candidate);
-			}
-		} else if (msg.type === "cam-off") {
-			document.getElementById("remoteVideo").style.display = "none";
-			document.getElementById("remoteAvatar").classList.add("visible");
-		} else if (msg.type === "cam-on") {
-			document.getElementById("remoteVideo").style.display = "block";
-			document.getElementById("remoteAvatar").classList.remove("visible");
-		} else if (msg.type === "room-timeout") {
-			endCall();
-		} else if (msg.type === "peer-joined") {
-			if (pc.signalingState === "stable") {
-				await startCall();
-			}
+	try {
+		switch (msg.type) {
+			case "offer":
+				if (!pc || pc.signalingState !== "stable") return;
+				if (!msg.sdp || typeof msg.sdp !== "object") return;
+				await pc.setRemoteDescription(msg.sdp);
+				remoteDescriptionSet = true;
+				await drainIceBuffer();
+				await streamReady;
+				{
+					const answer = await pc.createAnswer();
+					await pc.setLocalDescription(answer);
+					if (ws.readyState === WebSocket.OPEN) {
+						ws.send(JSON.stringify({ type: "answer", sdp: answer }));
+					}
+				}
+				break;
+
+			case "answer":
+				if (!pc || pc.signalingState !== "have-local-offer") return;
+				if (!msg.sdp || typeof msg.sdp !== "object") return;
+				await pc.setRemoteDescription(msg.sdp);
+				remoteDescriptionSet = true;
+				await drainIceBuffer();
+				break;
+
+			case "ice":
+				if (!pc) return;
+				if (msg.candidate && typeof msg.candidate !== "object") return;
+				if (remoteDescriptionSet) {
+					try { await pc.addIceCandidate(msg.candidate); } catch (e) {
+						console.warn("addIceCandidate failed:", e);
+					}
+				} else {
+					iceCandidateBuffer.push(msg.candidate);
+				}
+				break;
+
+			case "cam-off":
+				setRemoteVideoVisibility(false);
+				break;
+
+			case "cam-on":
+				setRemoteVideoVisibility(true);
+				break;
+
+			case "peer-joined":
+				if (pc && pc.signalingState === "stable") {
+					await startCall();
+				}
+				break;
+
+			case "peer-left":
+				remoteDescriptionSet = false;
+				iceCandidateBuffer.length = 0;
+				teardownRemote();
+				showStatus("peerLeft");
+				break;
+
+			case "room-timeout":
+				showStatus("timeout");
+				setTimeout(endCall, 1500);
+				break;
 		}
 	} catch (err) {
 		console.error("ws.onmessage error:", err);
 	}
 };
 
-function toggleFullscreen(wrapId) {
-	const wrap = document.getElementById(wrapId);
-	if (!document.fullscreenElement) {
-		wrap.requestFullscreen();
-	} else {
-		document.exitFullscreen();
+async function drainIceBuffer() {
+	for (const candidate of iceCandidateBuffer) {
+		try { await pc.addIceCandidate(candidate); } catch (e) {
+			console.warn("buffered addIceCandidate failed:", e);
+		}
+	}
+	iceCandidateBuffer.length = 0;
+}
+
+function setRemoteVideoVisibility(on) {
+	const video = $("remoteVideo");
+	const avatar = $("remoteAvatar");
+	if (video) video.style.display = on ? "block" : "none";
+	if (avatar) {
+		avatar.classList.toggle("hidden", on);
+		avatar.classList.toggle("flex", !on);
 	}
 }
 
-function toggleMic() {
-	const stream = document.getElementById("localVideo").srcObject;
-	if (!stream) return;
 
-	const tracks = stream.getAudioTracks();
+function toggleFullscreen(wrapId) {
+	const wrap = $(wrapId);
+	if (!wrap) return;
+	if (!document.fullscreenElement) {
+		wrap.requestFullscreen?.();
+	} else {
+		document.exitFullscreen?.();
+	}
+}
+function toggleMic() {
+	if (!localStream) return;
+	const tracks = localStream.getAudioTracks();
 	if (tracks.length === 0) {
 		alert("Микрофон не подключен");
 		return;
 	}
-
 	const track = tracks[0];
 	track.enabled = !track.enabled;
 	const isMuted = !track.enabled;
 
-	const btn = document.getElementById("micBtn");
-	btn.classList.toggle("off", isMuted);
-	btn.innerHTML = `<i data-lucide="${isMuted ? "mic-off" : "mic"}"></i>`;
+	const btn = $("micBtn");
+	const icon = btn.querySelector("span");
+	
+	if (isMuted) {
+		btn.classList.add("off");
+		if (icon) icon.textContent = "mic_off";
+	} else {
+		btn.classList.remove("off");
+		if (icon) icon.textContent = "mic";
+	}
 	btn.title = isMuted ? "Включить микрофон" : "Выключить микрофон";
-	window.lucide?.createIcons();
 }
 
 function toggleCam() {
-	const track = document
-		.getElementById("localVideo")
-		.srcObject.getVideoTracks()[0];
+	if (!localStream) return;
+	const tracks = localStream.getVideoTracks();
+	if (tracks.length === 0) {
+		alert("Камера не подключена");
+		return;
+	}
+	const track = tracks[0];
 	track.enabled = !track.enabled;
 	const isOff = !track.enabled;
-	ws.send(JSON.stringify({ type: isOff ? "cam-off" : "cam-on" }));
-	document.getElementById("camBtn").classList.toggle("off", isOff);
-	document.getElementById("camBtn").innerHTML =
-		`<i data-lucide="${isOff ? "video-off" : "video"}"></i>`;
-	document.getElementById("camBtn").title = isOff
-		? "Включить камеру"
-		: "Выключить камеру";
-	document.getElementById("localVideo").style.display = isOff
-		? "none"
-		: "block";
-	document.getElementById("localAvatar").classList.toggle("visible", isOff);
-	window.lucide?.createIcons();
+
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(JSON.stringify({ type: isOff ? "cam-off" : "cam-on" }));
+	}
+
+	const btn = $("camBtn");
+	const icon = btn.querySelector("span");
+	const video = $("localVideo");
+	const avatar = $("localAvatar");
+
+	if (isOff) {
+		btn.classList.add("off");
+		if (icon) icon.textContent = "videocam_off";
+		if (video) video.style.display = "none";
+		if (avatar) {
+			avatar.classList.remove("hidden");
+			avatar.classList.add("flex");
+		}
+	} else {
+		btn.classList.remove("off");
+		if (icon) icon.textContent = "videocam";
+		if (video) video.style.display = "block";
+		if (avatar) {
+			avatar.classList.add("hidden");
+			avatar.classList.remove("flex");
+		}
+	}
+	btn.title = isOff ? "Включить камеру" : "Выключить камеру";
 }
 
 function toggleMute() {
-	const video = document.getElementById("remoteVideo");
+	const video = $("remoteVideo");
+	if (!video) return;
 	video.muted = !video.muted;
 	const isMuted = video.muted;
-	document.getElementById("muteBtn").classList.toggle("off", isMuted);
-	document.getElementById("muteBtn").innerHTML =
-		`<i data-lucide="${isMuted ? "volume-x" : "volume-2"}"></i>`;
-	document.getElementById("muteBtn").title = isMuted
-		? "Включить звук"
-		: "Выключить звук";
-	window.lucide?.createIcons();
+
+	const btn = $("muteBtn");
+	const icon = btn.querySelector("span");
+	
+	if (isMuted) {
+		btn.classList.add("off");
+		if (icon) icon.textContent = "volume_off";
+	} else {
+		btn.classList.remove("off");
+		if (icon) icon.textContent = "volume_up";
+	}
+	btn.title = isMuted ? "Включить звук" : "Выключить звук";
 }
 
 function copyLink() {
 	navigator.clipboard.writeText(location.href).then(() => {
-		document.getElementById("copyBtn").innerHTML =
-			'<i data-lucide="check"></i>';
-		document.getElementById("copyBtn").title = "Скопировано!";
-		window.lucide?.createIcons();
+		const btn = $("copyBtn");
+		const icon = btn?.querySelector("span");
+		if (!icon) return;
+		icon.textContent = "check";
+		btn.title = "Скопировано!";
 		setTimeout(() => {
-			document.getElementById("copyBtn").innerHTML =
-				'<i data-lucide="link"></i>';
-			document.getElementById("copyBtn").title = "Скопировать ссылку";
-			window.lucide?.createIcons();
+			icon.textContent = "link";
+			btn.title = "Скопировать ссылку";
 		}, 2000);
 	});
 }
 
-window.lucide?.createIcons();
-document.getElementById("micBtn").addEventListener("click", toggleMic);
-document.getElementById("camBtn").addEventListener("click", toggleCam);
-document.getElementById("muteBtn").addEventListener("click", toggleMute);
-document.getElementById("endBtn").addEventListener("click", endCall);
-document.getElementById("copyBtn").addEventListener("click", copyLink);
-document
-	.getElementById("fsLocal")
-	.addEventListener("click", () => toggleFullscreen("localWrap"));
-document
-	.getElementById("fsRemote")
-	.addEventListener("click", () => toggleFullscreen("remoteWrap"));
-document.getElementById("flipCamera").addEventListener("click", flipCamera);
+
+const streamReady = (async () => {
+	iceConfig = await loadIceConfig();
+	pc = createPeerConnection(iceConfig);
+
+	localStream = await acquireMedia();
+	if (localStream) {
+		$("localVideo").srcObject = localStream;
+		localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+		checkAndShowFlipButton();
+	}
+})();
+
+$("micBtn")?.addEventListener("click", toggleMic);
+$("camBtn")?.addEventListener("click", toggleCam);
+$("muteBtn")?.addEventListener("click", toggleMute);
+$("endBtn")?.addEventListener("click", endCall);
+$("copyBtn")?.addEventListener("click", copyLink);
+$("fsLocal")?.addEventListener("click", () => toggleFullscreen("localWrap"));
+$("fsRemote")?.addEventListener("click", () => toggleFullscreen("remoteWrap"));
+$("flipCamera")?.addEventListener("click", flipCamera);

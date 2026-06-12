@@ -1,0 +1,28 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+COPY backend/ .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
+
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates tini \
+	&& addgroup -S jitter && adduser -S -G jitter -H jitter
+
+WORKDIR /app
+
+COPY --from=builder --chown=jitter:jitter /app/server ./server
+RUN chmod +x ./server
+
+COPY --chown=jitter:jitter frontend/ ./frontend/
+
+USER jitter
+EXPOSE 8080
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["./server"]

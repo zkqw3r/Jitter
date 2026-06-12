@@ -2,33 +2,56 @@ package handler
 
 import (
 	"context"
+	"errors"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/zkqw3r/Jitter/internal/db/sqlc"
 	"github.com/zkqw3r/Jitter/internal/signaling"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+func NewUpgrader(allowedOrigins []string) websocket.Upgrader {
+	allowed := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		allowed[o] = struct{}{}
+	}
+	return websocket.Upgrader{
+		ReadBufferSize:  4 * 1024,
+		WriteBufferSize: 4 * 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			_, ok := allowed[origin]
+			return ok
+		},
+	}
 }
 
-func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
+func WSHandler(upgrader websocket.Upgrader, hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var uuid pgtype.UUID
+		var roomUUID pgtype.UUID
 		roomID := ctx.Param("roomID")
-		err := uuid.Scan(roomID)
-		if err != nil {
+		if err := roomUUID.Scan(roomID); err != nil {
 			ctx.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		_, err = queries.GetRoom(ctx.Request.Context(), uuid)
-		if err != nil {
-			ctx.AbortWithStatus(http.StatusNotFound)
+
+		lookupCtx, cancel := context.WithTimeout(ctx.Request.Context(), 3*time.Second)
+		defer cancel()
+		if _, err := queries.GetRoom(lookupCtx, roomUUID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				ctx.AbortWithStatus(http.StatusNotFound)
+				return
+			}
+			log.Printf("ws: GetRoom failed: %v", err)
+			ctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 
@@ -39,15 +62,24 @@ func WSHandler(hub *signaling.Hub, queries *db.Queries) gin.HandlerFunc {
 		client := signaling.NewClient(conn, hub, roomID)
 
 		err = hub.Join(roomID, client, func() {
-			queries.DeleteRoom(context.Background(), uuid)
+			delCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := queries.DeleteRoom(delCtx, roomUUID); err != nil {
+				log.Printf("ws: DeleteRoom(%s) failed: %v", roomID, err)
+			}
 		})
 		if err != nil {
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4000, "room is full"))
-			conn.Close()
+			_ = conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(4000, "room is full"),
+				time.Now().Add(2*time.Second),
+			)
+			_ = conn.Close()
 			return
 		}
-		hub.Broadcast(roomID, client, []byte(`{"type":"peer-joined"}`))
+
 		go client.WritePump()
+		hub.BroadcastPeerJoined(roomID, client)
 		client.ReadPump()
 	}
 }
