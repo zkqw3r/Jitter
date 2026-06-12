@@ -40,7 +40,7 @@ function showStatus(presetKey) {
 	$("statusIcon").textContent = preset.icon;
 	$("statusTitle").textContent = preset.title;
 	$("statusText").textContent = preset.text;
-	overlay.hidden = false;
+	overlay.style.display = "flex";
 }
 
 
@@ -119,10 +119,10 @@ async function acquireMedia() {
 				video: { facingMode: "user" },
 				audio: false,
 			});
-			alert("Микрофон недоступен, работаем только с видео");
+			alert("Microphone unavailable, falling back to video only");
 			return stream;
 		} catch (err2) {
-			alert("Не удалось получить доступ к камере/микрофону: " + err2.message);
+			alert("Could not access camera/microphone: " + err2.message);
 			return null;
 		}
 	}
@@ -136,7 +136,7 @@ async function checkAndShowFlipButton() {
 		const videoInputs = devices.filter((d) => d.kind === "videoinput");
 		if (videoInputs.length > 1) {
 			const flipBtn = $("flipCamera");
-			if (flipBtn) flipBtn.classList.remove("hidden");
+			if (flipBtn) flipBtn.style.display = "flex";
 		}
 	} catch (err) {
 		console.warn("enumerateDevices failed:", err);
@@ -347,7 +347,7 @@ function toggleMic() {
 	if (!localStream) return;
 	const tracks = localStream.getAudioTracks();
 	if (tracks.length === 0) {
-		alert("Микрофон не подключен");
+		alert("Microphone not connected");
 		return;
 	}
 	const track = tracks[0];
@@ -371,7 +371,7 @@ function toggleCam() {
 	if (!localStream) return;
 	const tracks = localStream.getVideoTracks();
 	if (tracks.length === 0) {
-		alert("Камера не подключена");
+		alert("Camera not connected");
 		return;
 	}
 	const track = tracks[0];
@@ -432,10 +432,10 @@ function copyLink() {
 		const icon = btn?.querySelector("span");
 		if (!icon) return;
 		icon.textContent = "check";
-		btn.title = "Скопировано!";
+		btn.title = "Copied!";
 		setTimeout(() => {
 			icon.textContent = "link";
-			btn.title = "Скопировать ссылку";
+			btn.title = "Copy link";
 		}, 2000);
 	});
 }

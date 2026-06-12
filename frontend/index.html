@@ -68,7 +68,7 @@
 				const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 				const match = input.match(uuidRegex);
 				if (!match) {
-					showError("Неверный формат ссылки");
+					showError("Invalid link format");
 					return;
 				}
 
@@ -77,7 +77,7 @@
 				if (res.ok) {
 					location.href = `/room/${id}`;
 				} else {
-					showError("Комната не найдена");
+					showError("Room not found");
 				}
 			}
 		</script>

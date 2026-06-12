@@ -13,7 +13,7 @@ body {
 	font-family: "Inter", sans-serif;
 	background: #0e0e0e;
 	color: #e5e2e1;
-	min-height: 100vh;
+	min-height: 100svh;
 	overflow-x: hidden;
 	position: relative;
 }
@@ -524,7 +524,7 @@ body {
 
 .call-controls {
 	position: fixed;
-	bottom: 3rem;
+	bottom: 1.5rem;
 	left: 50%;
 	transform: translateX(-50%);
 	z-index: 50;
@@ -542,6 +542,12 @@ body {
 	box-shadow:
 		0 30px 60px rgba(0, 0, 0, 0.8),
 		inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+@media (min-width: 768px) {
+	.call-controls {
+		bottom: 3rem;
+	}
 }
 
 .call-controls::before {

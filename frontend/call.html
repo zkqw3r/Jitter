@@ -14,7 +14,7 @@
 		<header class="call-header">
 			<div class="call-logo">JITTER</div>
 			<div class="call-header-actions">
-				<button id="copyBtn" title="Скопировать ссылку" class="call-header-btn">
+				<button id="copyBtn" title="Copy link" class="call-header-btn">
 					<span class="material-symbols-outlined">link</span>
 				</button>
 			</div>
@@ -24,9 +24,6 @@
 			<div id="localWrap" class="video-tile video-tile-local">
 				<video id="localVideo" autoplay muted playsinline></video>
 				<div id="localAvatar" class="video-avatar video-avatar-local">🙂</div>
-				<button id="flipCamera" class="video-flip-btn">
-					<span class="material-symbols-outlined">flip_camera_android</span>
-				</button>
 				<button id="fsLocal" class="video-fs-btn">
 					<span class="material-symbols-outlined">fullscreen</span>
 				</button>
@@ -42,24 +39,33 @@
 		</main>
 		
 		<nav class="call-controls">
-			<button id="micBtn" title="Выключить микрофон" class="call-control-btn call-control-btn-mic">
+			<button id="flipCamera" title="Switch camera" class="call-control-btn call-control-btn-flip" style="display: none;">
+				<span class="material-symbols-outlined">flip_camera_android</span>
+			</button>
+			
+			<button id="micBtn" title="Toggle microphone" class="call-control-btn call-control-btn-mic">
 				<span class="material-symbols-outlined">mic</span>
 			</button>
 			
-			<button id="camBtn" title="Выключить камеру" class="call-control-btn call-control-btn-cam">
+			<button id="camBtn" title="Toggle camera" class="call-control-btn call-control-btn-cam">
 				<span class="material-symbols-outlined">videocam</span>
 			</button>
 			
-			<button id="muteBtn" title="Выключить звук" class="call-control-btn call-control-btn-mute">
+			<button id="muteBtn" title="Toggle audio" class="call-control-btn call-control-btn-mute">
 				<span class="material-symbols-outlined">volume_up</span>
 			</button>
 			
 			<div class="call-controls-divider"></div>
 			
-			<button id="endBtn" title="Завершить звонок" class="call-control-btn call-control-btn-end">
+			<button id="endBtn" title="End call" class="call-control-btn call-control-btn-end">
 				<span class="material-symbols-outlined">call_end</span>
 			</button>
 		</nav>
+		<div id="statusOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;color:white;text-align:center;">
+			<span id="statusIcon" class="material-symbols-outlined" style="font-size:4rem;margin-bottom:1rem;"></span>
+			<h2 id="statusTitle" style="font-size:2rem;margin-bottom:0.5rem;"></h2>
+			<p id="statusText" style="font-size:1.2rem;color:#ccc;"></p>
+		</div>
 		
 		<script type="module" src="/app.js"></script>
 	</body>
